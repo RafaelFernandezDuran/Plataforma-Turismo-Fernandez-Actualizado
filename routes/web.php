@@ -30,6 +30,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::post('/payment-method', [DashboardController::class, 'storeSavedPaymentMethod'])->name('payment-method.store');
+    Route::delete('/payment-method', [DashboardController::class, 'destroySavedPaymentMethod'])->name('payment-method.destroy');
 });
 
 // Ruta de prueba de base de datos

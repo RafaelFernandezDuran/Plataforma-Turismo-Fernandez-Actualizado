@@ -63,11 +63,8 @@
     <div class="section">
         <div class="section-title">Detalles del Tour</div>
         <div class="section-body">
-            @php
-                $imageUrl = $booking->tour->image_url;
-            @endphp
-            @if($imageUrl)
-                <img src="{{ $imageUrl }}" alt="{{ $booking->tour->title }}" class="tour-image">
+            @if(!empty($tourImageData))
+                <img src="{{ $tourImageData }}" alt="{{ $booking->tour->title }}" class="tour-image">
             @endif
             <div class="grid">
                 <div class="grid-item">

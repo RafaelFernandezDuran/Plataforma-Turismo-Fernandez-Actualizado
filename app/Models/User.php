@@ -28,10 +28,17 @@ class User extends Authenticatable
         'document_number',
         'user_type',
         'preferences',
+    'opt_out_recommendations',
         'avatar',
         'language',
         'newsletter_subscription',
         'last_activity',
+        'card_token',
+        'card_brand',
+        'card_last_four',
+        'card_expiry',
+        'card_holder',
+        'card_saved_at',
     ];
 
     /**
@@ -42,6 +49,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'card_token',
     ];
 
     /**
@@ -57,7 +65,9 @@ class User extends Authenticatable
             'birth_date' => 'date',
             'preferences' => 'array',
             'newsletter_subscription' => 'boolean',
+            'opt_out_recommendations' => 'boolean',
             'last_activity' => 'datetime',
+            'card_saved_at' => 'datetime',
         ];
     }
 

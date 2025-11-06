@@ -400,16 +400,66 @@
                     </div>
                     <a href="{{ route('tours.index') }}" class="link-all">Ver todos los tours <i class="fas fa-arrow-right"></i></a>
                 </div>
+                @php
+                    $categoryIconFallbacks = [
+                        'aventura-y-deportes-extremos' => 'fa-person-hiking',
+                        'turismo-gastronomico' => 'fa-utensils',
+                        'ecoturismo' => 'fa-seedling',
+                        'turismo-cultural' => 'fa-landmark',
+                        'caminatas-y-trekking' => 'fa-person-walking',
+                        'relajacion-y-bienestar' => 'fa-spa',
+                    ];
+                @endphp
                 <div class="categories-grid" role="list">
                     @foreach($categories as $category)
+                        @php
+                            $rawIcon = trim((string) ($category->icon ?? ''));
+                            if ($rawIcon === '') {
+                                $rawIcon = $categoryIconFallbacks[$category->slug] ?? 'fa-map-location-dot';
+                            }
+                            $iconTokens = preg_split('/\s+/', $rawIcon);
+                            $stylePrefixes = ['fas', 'far', 'fal', 'fad', 'fab', 'fa-solid', 'fa-regular', 'fa-light', 'fa-thin', 'fa-duotone', 'fa-brands'];
+                            $hasStylePrefix = false;
+                            $normalizedTokens = [];
+
+                            foreach ($iconTokens as $token) {
+                                $token = trim($token);
+                                if ($token === '') {
+                                    continue;
+                                }
+
+                                if (in_array($token, $stylePrefixes, true)) {
+                                    $hasStylePrefix = true;
+                                    $normalizedTokens[] = $token;
+                                    continue;
+                                }
+
+                                if (! Str::startsWith($token, 'fa-')) {
+                                    $token = 'fa-' . $token;
+                                }
+
+                                $normalizedTokens[] = $token;
+                            }
+
+                            if (empty($normalizedTokens)) {
+                                $normalizedTokens[] = 'fa-map-location-dot';
+                                $hasStylePrefix = true;
+                            }
+
+                            if (! $hasStylePrefix) {
+                                array_unshift($normalizedTokens, 'fas');
+                            }
+
+                            $iconClass = implode(' ', array_unique($normalizedTokens));
+                        @endphp
                         <a href="{{ route('tours.index', ['category' => $category->slug]) }}" class="category-card" role="listitem" aria-label="Ver tours de {{ $category->name }}">
                             <div class="category-icon" style="background: {{ $category->color ?? 'var(--color-primary)' }}10; color: {{ $category->color ?? 'var(--color-primary)' }}">
-                                <i class="fas fa-{{ $category->icon ?? 'mountain' }}" aria-hidden="true"></i>
+                                <i class="{{ $iconClass }}" aria-hidden="true"></i>
                             </div>
                             <div class="category-info">
                                 <h3>{{ $category->name }}</h3>
                                 <p>{{ $category->description ?? 'Descubre experiencias inolvidables en esta categoría.' }}</p>
-                                <span class="category-meta"><i class="fas fa-map-marker-alt"></i> {{ $category->tours_count ?? 0 }} tour{{ ($category->tours_count ?? 0) === 1 ? '' : 's' }}</span>
+                                <span class="category-meta"><i class="fas fa-map-marker-alt"></i> <strong>{{ $category->tours_count ?? 0 }}</strong> tour{{ ($category->tours_count ?? 0) === 1 ? '' : 's' }}</span>
                             </div>
                             <span class="category-arrow"><i class="fas fa-arrow-right"></i></span>
                         </a>

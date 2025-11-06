@@ -7,9 +7,18 @@ use App\Models\Tour;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use App\Services\RecommendationService;
 
 class DashboardController extends Controller
 {
+    protected RecommendationService $recommendations;
+
+    public function __construct(RecommendationService $recommendations)
+    {
+        $this->recommendations = $recommendations;
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -57,16 +66,7 @@ class DashboardController extends Controller
             ->limit(3)
             ->get();
 
-        $bookedTourIds = $user->bookings()->pluck('tour_id')->unique();
-
-        $recommendedTours = Tour::query()
-            ->active()
-            ->with(['category', 'company'])
-            ->when($bookedTourIds->isNotEmpty(), fn ($query) => $query->whereNotIn('id', $bookedTourIds))
-            ->orderByDesc('rating')
-            ->orderByDesc('total_reviews')
-            ->limit(4)
-            ->get();
+        $recommendedTours = $this->recommendations->forUser($user, 4);
 
         $favoriteCategories = $user->bookings()
             ->join('tours', 'bookings.tour_id', '=', 'tours.id')
@@ -134,6 +134,18 @@ class DashboardController extends Controller
 
         $nextBooking = $upcomingBookings->first();
 
+        $savedPaymentMethod = null;
+
+        if ($user->card_token && $user->card_last_four) {
+            $savedPaymentMethod = [
+                'brand' => $user->card_brand,
+                'last_four' => $user->card_last_four,
+                'expiry' => $user->card_expiry,
+                'holder' => $user->card_holder,
+                'saved_at' => $user->card_saved_at,
+            ];
+        }
+
         return view('dashboard.tourist', [
             'user' => $user,
             'statistics' => [
@@ -154,6 +166,86 @@ class DashboardController extends Controller
                 'missing_fields' => $missingProfileFields,
             ],
             'nextBooking' => $nextBooking,
+            'savedPaymentMethod' => $savedPaymentMethod,
         ]);
+    }
+
+    public function storeSavedPaymentMethod(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validateWithBag('paymentMethod', [
+            'card_number' => ['required', 'regex:/^(?:\d[\s-]?){12,19}$/'],
+            'card_holder_name' => ['required', 'string', 'max:120'],
+            'card_expiry' => ['required', 'regex:/^(0[1-9]|1[0-2])\/[0-9]{2}$/'],
+        ], [
+            'card_number.required' => 'Ingresa el número de la tarjeta.',
+            'card_number.regex' => 'El número de tarjeta debe contener entre 12 y 19 dígitos.',
+            'card_holder_name.required' => 'Ingresa el nombre del titular.',
+            'card_expiry.required' => 'Ingresa la fecha de expiración.',
+            'card_expiry.regex' => 'La fecha de expiración debe tener el formato MM/AA.',
+        ]);
+
+        $digits = preg_replace('/[^0-9]/', '', $validated['card_number']);
+
+        if (strlen($digits) < 12 || strlen($digits) > 19) {
+            return back()->withErrors([
+                'card_number' => 'El número de tarjeta debe contener entre 12 y 19 dígitos reales.',
+            ], 'paymentMethod')->withInput();
+        }
+
+        $brand = $this->detectCardBrand($digits);
+        $lastFour = substr($digits, -4);
+        $expiry = $validated['card_expiry'];
+        $holder = mb_strtoupper($validated['card_holder_name']);
+
+        $previousToken = $user->card_token;
+
+        $user->forceFill([
+            'card_token' => 'tok_dash_' . strtoupper(Str::random(24)),
+            'card_brand' => $brand,
+            'card_last_four' => $lastFour,
+            'card_expiry' => $expiry,
+            'card_holder' => $holder,
+            'card_saved_at' => now(),
+        ])->save();
+
+        $message = $previousToken ? 'Tarjeta actualizada correctamente.' : 'Tarjeta guardada para próximos pagos.';
+
+        return redirect()
+            ->route('dashboard')
+            ->with('payment_method_notice', $message);
+    }
+
+    public function destroySavedPaymentMethod(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user) {
+            $user->forceFill([
+                'card_token' => null,
+                'card_brand' => null,
+                'card_last_four' => null,
+                'card_expiry' => null,
+                'card_holder' => null,
+                'card_saved_at' => null,
+            ])->save();
+        }
+
+        return redirect()
+            ->route('dashboard')
+            ->with('payment_method_notice', 'Tu tarjeta guardada se eliminó de forma segura.');
+    }
+
+    protected function detectCardBrand(string $digits): string
+    {
+        return match (true) {
+            str_starts_with($digits, '4') => 'VISA',
+            preg_match('/^5[1-5]/', $digits) === 1 => 'MASTERCARD',
+            preg_match('/^3[47]/', $digits) === 1 => 'AMEX',
+            preg_match('/^6(?:011|5)/', $digits) === 1 => 'DISCOVER',
+            preg_match('/^(30[0-5]|36|38|39)/', $digits) === 1 => 'DINERS',
+            default => 'CARD',
+        };
     }
 }

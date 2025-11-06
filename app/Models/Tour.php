@@ -91,6 +91,11 @@ class Tour extends Model
         return $this->hasMany(Review::class);
     }
 
+    public function recommendationStat()
+    {
+        return $this->hasOne(TourRecommendationStat::class);
+    }
+
     /**
      * Scope for active tours
      */
