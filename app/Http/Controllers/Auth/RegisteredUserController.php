@@ -4,14 +4,20 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTouristRequest;
-use App\Models\User;
+use App\Services\UserStoredProcedureService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
 {
+    public function __construct(private readonly UserStoredProcedureService $userProcedures)
+    {
+    }
+
     /**
      * Display the registration view.
      */
@@ -29,15 +35,28 @@ class RegisteredUserController extends Controller
     {
         $validated = $request->validated();
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'phone' => $validated['phone'] ?? null,
-            'user_type' => $validated['user_type'],
-            'nationality' => $validated['nationality'],
-            'language' => 'es', // Por defecto español
-        ]);
+        try {
+            $user = $this->userProcedures->create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'phone' => $validated['phone'] ?? null,
+                'birth_date' => null,
+                'nationality' => $validated['nationality'],
+                'document_type' => null,
+                'document_number' => null,
+                'user_type' => $validated['user_type'],
+                'preferences' => json_encode([]),
+                'opt_out_recommendations' => false,
+                'avatar' => null,
+                'language' => 'es',
+                'newsletter_subscription' => true,
+            ]);
+        } catch (QueryException $exception) {
+            throw ValidationException::withMessages([
+                'email' => $exception->getMessage(),
+            ]);
+        }
 
         Auth::login($user);
 
